@@ -35,6 +35,11 @@ DEFAULT_PATH = os.environ['PROGRAMFILES']
 CONSOLE_HANDLER = ctypes.windll.Kernel32.GetStdHandle(ctypes.c_ulong(0xfffffff5))
 
 
+# Enable SSL support in requests library when running as EXE.
+if getattr(sys, 'frozen', None):
+     os.environ['REQUESTS_CA_BUNDLE'] = os.path.join(sys._MEIPASS, 'cacert.pem')
+
+
 def _black():
     return ctypes.windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, 15)
 
