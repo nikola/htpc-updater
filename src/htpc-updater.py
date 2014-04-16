@@ -9,6 +9,7 @@ import sys
 import os
 import re
 import types
+import time
 import ctypes
 import inspect
 import _winreg as registry
@@ -150,14 +151,30 @@ def _mpcHc_installLatestReleaseVersion(self, releaseVersion, currentMpcHcPath):
     url = re.search('<a href="([^\"]+)">installer</a>', response).group(1)
     _writeAnyText(' done.\n')
 
-    _writeAnyText('Selecting filehost for MPC-HC download ...')
-    response = requests.get(url, headers=HEADERS_SF).text
-    url = re.search('<meta[^>]*?url=(.*?)["\']', response, re.I).group(1)
-    _writeAnyText(' done.\n')
+    retries = 0
+    while True:
+        _writeAnyText('Selecting filehost for MPC-HC download ...')
+        response = requests.get(url, headers=HEADERS_SF).text
+        url = re.search('<meta[^>]*?url=(.*?)["\']', response, re.I).group(1)
+        _writeAnyText(' done.\n')
 
-    _writeAnyText('Downloading %s ...' % url)
-    response = requests.get(url, headers=HEADERS_SF).content
-    _writeAnyText(' done.\n')
+        time.sleep(1)
+
+        _writeAnyText('Downloading %s ...' % url)
+        response = requests.get(url, headers=HEADERS_SF).content
+        _writeAnyText(' done.\n')
+
+        if response.strip().endswith('</html>') or len(response) < 1e6:
+            retries += 1
+
+            if retries < 10:
+                _writeNotOkText('Selected filehost is not serving MPC-HC %s, trying another filehost.\n' % releaseVersion)
+                time.sleep(2)
+            else:
+                _writeNotOkText('It appears no filehost can be found serving MPC-HC %s, aborting for now.\n' % releaseVersion)
+                return
+        else:
+            break
 
     pathname = _writeTempFile(response)
 
@@ -300,11 +317,12 @@ def run():
                 except Exception, e:
                     _writeNotOkText(' ERROR: %s\n' % e.message)
                 else:
-                    if detectedInstallationPath != currentInstallationPath:
-                        _writeAnyText('%s %s is now installed in:\n\t%s\n' % (name, releaseVersion, currentInstallationPath))
-                        if installedVersion is not None:
-                            _writeAnyText('Your previous installation of %s %s remains in:\n\t%s\n' % (name, installedVersion, detectedInstallationPath))
-                    _writeOkText('Successfully %s %s. No errors.\n' % ('updated' if installedVersion is not None else 'installed', name))
+                    if currentInstallationPath is not None:
+                        if detectedInstallationPath != currentInstallationPath:
+                            _writeAnyText('%s %s is now installed in:\n\t%s\n' % (name, releaseVersion, currentInstallationPath))
+                            if installedVersion is not None:
+                                _writeAnyText('Your previous installation of %s %s remains in:\n\t%s\n' % (name, installedVersion, detectedInstallationPath))
+                        _writeOkText('Successfully %s %s. No errors.\n' % ('updated' if installedVersion is not None else 'installed', name))
 
         _writeOkText('\n')
 

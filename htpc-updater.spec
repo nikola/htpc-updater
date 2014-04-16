@@ -6,7 +6,7 @@ a = Analysis(['./src/htpc-updater.py'],
 a.datas.append(('cacert.pem', 'cacert.pem', 'DATA'))
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
-          a.scripts,
+          a.scripts + [('O','','OPTION')],
           a.binaries,
           a.zipfiles,
           a.datas,
@@ -14,4 +14,6 @@ exe = EXE(pyz,
           debug=False,
           strip=None,
           upx=True,
-          console=True , manifest='htpc-updater.exe.manifest')
+          console=True,
+          manifest='htpc-updater.exe.manifest',
+)
