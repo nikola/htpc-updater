@@ -10,6 +10,7 @@ import os
 import re
 import types
 import time
+import random
 import ctypes
 import inspect
 import _winreg as registry
@@ -29,6 +30,7 @@ ctypes.windll.Kernel32.GetStdHandle.restype = ctypes.c_ulong
 LAVFILTERS_CLSID = '{171252A0-8820-4AFE-9DF8-5C92B2D66B04}'
 MADVR_CLSID = '{E1A8B82A-32CE-4B0D-BE0D-AA68C772E423}'
 HEADERS_TRACKABLE = {'User-agent': 'htpc-updater (https://github.com/nikola/htpc-updater)'}
+HEADERS_SF = {'User-agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.%d.116 Safari/537.36' % random.randint(1000, 3000)}
 URL_VERSION = 'http://madshi.net/madVR/version.txt'
 URL_ZIP = 'http://madshi.net/madVR.zip'
 DEFAULT_PATH = os.environ['PROGRAMFILES']
@@ -153,7 +155,7 @@ def _mpcHc_installLatestReleaseVersion(self, releaseVersion, currentMpcHcPath):
     retries = 0
     while True:
         _writeAnyText('Selecting filehost for MPC-HC download ...')
-        response = requests.get(initialUrl, headers=HEADERS_TRACKABLE).text
+        response = requests.get(initialUrl, headers=HEADERS_SF).text
         filehostResolver = re.search('<meta[^>]*?url=(.*?)["\']', response, re.I).group(1)
         filehostName = re.search('use_mirror=([a-z\-]+)', filehostResolver).group(1)
         filehostUrl = filehostResolver[:filehostResolver.index('?')].replace('downloads', filehostName + '.dl')
@@ -162,7 +164,7 @@ def _mpcHc_installLatestReleaseVersion(self, releaseVersion, currentMpcHcPath):
         time.sleep(1)
 
         _writeAnyText('Downloading %s ...' % filehostUrl)
-        response = requests.get(filehostUrl, headers=HEADERS_TRACKABLE).content
+        response = requests.get(filehostUrl, headers=HEADERS_SF).content
         _writeAnyText(' done.\n')
 
         if response.strip().endswith('</html>') or len(response) < 1e6:
