@@ -27,7 +27,7 @@ htpc-updater does not ship with any binaries for MPC-HC, LAV Filters or madVR. I
 
 SSL/TLS will be used for connections where available.
 
-The default installation path for each component is {Drive}{Program Files}, appropriately resolved to the actual location and taking into account whether your system is 32 or 64-bit.
+The default installation path for each component is {System Drive}{Program Files}, appropriately resolved to the actual location and taking into account whether your system is 32 or 64-bit.
 
 If a component is already installed on your machine, htpc-updater (or the installer of the component) will attempt to upgrade files at the same location. You can choose to change the default installation path in the source code, and htpc-updater will happily leave a previous installation in place.
 

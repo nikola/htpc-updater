@@ -331,6 +331,8 @@ def run():
 
 
 if __name__ == "__main__":
+    _writeAnyText('htpc-updater %s (https://github.com/nikola/htpc-updater)\n\n' % __version__)
+
     run()
 
     _black() and raw_input('Press ENTER to exit ...')
