@@ -1,9 +1,9 @@
 # coding: iso-8859-1
 """
 """
-__author__ = 'Nikola Klaric (nikola@klaric.org)'
+__author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 import sys
 import os
@@ -27,10 +27,17 @@ sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 ctypes.windll.Kernel32.GetStdHandle.restype = ctypes.c_ulong
 
 
+MPCHC_TAGS = 'https://api.github.com/repos/mpc-hc/mpc-hc/tags'
+MPCHC_DOWNLADS = 'http://mpc-hc.org/downloads/'
 LAVFILTERS_CLSID = '{171252A0-8820-4AFE-9DF8-5C92B2D66B04}'
+LAVFILTERS_RELEASES = 'https://api.github.com/repos/Nevcairiel/LAVFilters/releases'
+LAVFILTERS_DL_PATH = 'https://github.com/Nevcairiel/LAVFilters/releases/download/{0}/LAVFilters-{0}-Installer.exe'
 MADVR_CLSID = '{E1A8B82A-32CE-4B0D-BE0D-AA68C772E423}'
 HEADERS_TRACKABLE = {'User-agent': 'htpc-updater (https://github.com/nikola/htpc-updater)'}
-HEADERS_SF = {'User-agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.%d.116 Safari/537.36' % random.randint(1000, 3000)}
+HEADERS_SF = {
+    'User-agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.%d.116 Safari/537.36'
+        % random.randint(1000, 3000)
+}
 URL_VERSION = 'http://madshi.net/madVR/version.txt'
 URL_ZIP = 'http://madshi.net/madVR.zip'
 DEFAULT_PATH = os.environ['PROGRAMFILES']
@@ -128,7 +135,7 @@ def _getComVersionLocation(key):
 
 def _mpcHc_getLatestReleaseVersion(self):
     try:
-        latestVersion = '.'.join(map(str, max([_versiontuple(tag.get('name')) for tag in requests.get('https://api.github.com/repos/mpc-hc/mpc-hc/tags').json()])))
+        latestVersion = '.'.join(map(str, max([_versiontuple(tag.get('name')) for tag in requests.get(MPCHC_TAGS).json()])))
     except:
         latestVersion = None
 
@@ -148,7 +155,7 @@ def _mpcHc_getInstalledVersion(self):
 
 def _mpcHc_installLatestReleaseVersion(self, releaseVersion, currentMpcHcPath):
     _writeAnyText('Identifying filename of MPC-HC download ...')
-    response = requests.get('http://mpc-hc.org/downloads/').text
+    response = requests.get(MPCHC_DOWNLADS).text
     initialUrl = re.search('<a href="([^\"]+)">installer</a>', response).group(1)
     _writeAnyText(' done.\n')
 
@@ -192,7 +199,7 @@ def _mpcHc_installLatestReleaseVersion(self, releaseVersion, currentMpcHcPath):
 
 def _lavFilters_getLatestReleaseVersion(self):
     try:
-        response = requests.get('https://api.github.com/repos/Nevcairiel/LAVFilters/releases').json()
+        response = requests.get(LAVFILTERS_RELEASES).json()
         latestVersion = response[0].get('tag_name')
     except:
         latestVersion = None
@@ -208,7 +215,7 @@ def _lavFilters_getInstalledVersion(self):
 
 
 def _lavFilters_installLatestReleaseVersion(self, releaseVersion, currentLavFiltersPath):
-    url = 'https://github.com/Nevcairiel/LAVFilters/releases/download/{0}/LAVFilters-{0}-Installer.exe'.format(releaseVersion)
+    url = LAVFILTERS_DL_PATH.format(releaseVersion)
 
     _writeAnyText('Downloading %s ...' % url)
     response = requests.get(url).content
@@ -322,10 +329,13 @@ def run():
                 else:
                     if currentInstallationPath is not None:
                         if detectedInstallationPath != currentInstallationPath:
-                            _writeAnyText('%s %s is now installed in:\n\t%s\n' % (name, releaseVersion, currentInstallationPath))
+                            _writeAnyText('%s %s is now installed in:\n\t%s\n'
+                                % (name, releaseVersion, currentInstallationPath))
                             if installedVersion is not None:
-                                _writeAnyText('Your previous installation of %s %s remains in:\n\t%s\n' % (name, installedVersion, detectedInstallationPath))
-                        _writeOkText('Successfully %s %s. No errors.\n' % ('updated' if installedVersion is not None else 'installed', name))
+                                _writeAnyText('Your previous installation of %s %s remains in:\n\t%s\n'
+                                    % (name, installedVersion, detectedInstallationPath))
+                        _writeOkText('Successfully %s %s. No errors.\n'
+                            % ('updated' if installedVersion is not None else 'installed', name))
 
         _writeOkText('\n')
 
