@@ -3,7 +3,7 @@
 """
 __author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 import sys
 import os
@@ -20,6 +20,7 @@ from zipfile import ZipFile
 from cStringIO import StringIO
 from operator import itemgetter
 from tempfile import mkstemp
+from hashlib import sha1 as SHA1
 
 
 # Support unbuffered, colored console output.
@@ -38,8 +39,9 @@ HEADERS_SF = {
     'User-agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.%d.116 Safari/537.36'
         % random.randint(1000, 3000)
 }
-URL_VERSION = 'http://madshi.net/madVR/version.txt'
-URL_ZIP = 'http://madshi.net/madVR.zip'
+MADVR_URL_VERSION = 'http://madshi.net/madVR/version.txt'
+MADVR_URL_HASH = 'http://madshi.net/madVR/sha1.txt'
+MADVR_URL_ZIP = 'http://madshi.net/madVR.zip'
 DEFAULT_PATH = os.environ['PROGRAMFILES']
 CONSOLE_HANDLER = ctypes.windll.Kernel32.GetStdHandle(ctypes.c_ulong(0xfffffff5))
 
@@ -234,7 +236,7 @@ def _lavFilters_installLatestReleaseVersion(self, releaseVersion, currentLavFilt
 
 def _madVr_getLatestReleaseVersion(self):
     try:
-        latestVersion = requests.get(URL_VERSION, headers=HEADERS_TRACKABLE).text
+        latestVersion = requests.get(MADVR_URL_VERSION, headers=HEADERS_TRACKABLE).text
     except:
         latestVersion = None
 
@@ -246,9 +248,21 @@ def _madVr_getInstalledVersion(self):
 
 
 def _madVr_installLatestReleaseVersion(self, releaseVersion, currentMadVrPath):
-    _writeAnyText('Downloading %s ...' % URL_ZIP)
-    madVrZipFile = requests.get(URL_ZIP, headers=HEADERS_TRACKABLE).content
+    _writeAnyText('Downloading %s ...' % MADVR_URL_ZIP)
+    madVrZipFile = requests.get(MADVR_URL_ZIP, headers=HEADERS_TRACKABLE).content
     _writeAnyText(' done.\n')
+
+    _writeAnyText('Verifying SHA1 of downloaded ZIP file ...')
+    madVrZipHashShould = requests.get(MADVR_URL_HASH, headers=HEADERS_TRACKABLE).content
+    sha1 = SHA1()
+    sha1.update(madVrZipFile)
+    madVrZipHashIs = sha1.hexdigest()
+    if madVrZipHashIs == madVrZipHashShould:
+        _writeAnyText(' OK!\n')
+    else:
+        _writeNotOkText(' ERROR: SHA1 is %s but should be %s!\n' % (madVrZipHashIs, madVrZipHashShould))
+        _writeNotOkText('Aborting installation of madVR %s.\n' % releaseVersion)
+        return
 
     _writeAnyText('Installing madVR %s ...' % releaseVersion)
     madVrInstallationPath = currentMadVrPath or _getDefaultInstallationPath('madVR')
