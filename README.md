@@ -33,9 +33,9 @@ If a component is already installed on your machine, htpc-updater (or the instal
 
 As of this writing, htpc-updater is known to work on:
 
-* Windows 7 64-bit
+* Windows 7 64-bit, Windows 8.1 64-bit.
 
-It _should_ work on Windows XP and Windows 8, too.
+It _should_ work on other versions of Windows, too.
 
 __Disclaimer: No endorsement is implied by the authors of MPC-HC, LAV Filters or madVR.__
 
