@@ -1,9 +1,9 @@
 htpc-updater
 =============
 
-Automagically install or update [MPC-HC], [LAV Filters] and [madVR] on your local Windows machine.
+Automagically install or update [MPC-HC], [LAV Filters] and [madVR] on your local Windows machine. (Starting with 0.4.0, htpc-updater will also update itself.)
 
-Latest release of htpc-updater: [0.3.0]
+Latest release of htpc-updater: [0.4.0]
 
 ![alt text][screenshot]
 
@@ -43,5 +43,5 @@ __Disclaimer: No endorsement is implied by the authors of MPC-HC, LAV Filters or
 [LAV Filters]:https://github.com/Nevcairiel/LAVFilters
 [madVR]:http://forum.doom9.org/showthread.php?t=146228
 [Windows executable]:https://github.com/nikola/htpc-updater/releases
-[0.3.0]:https://github.com/nikola/htpc-updater/releases/tag/0.3.0
+[0.4.0]:https://github.com/nikola/htpc-updater/releases/tag/0.4.0
 [screenshot]:https://raw.githubusercontent.com/nikola/htpc-updater/master/htpc-updater.png "Screenshot"
