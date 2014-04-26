@@ -3,7 +3,7 @@
 """
 __author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.3.0'
+__version__ = '0.4.0'
 
 import sys
 import os
@@ -14,13 +14,15 @@ import random
 import ctypes
 import inspect
 import _winreg as registry
-import pefile
-import requests
 from zipfile import ZipFile
 from cStringIO import StringIO
 from operator import itemgetter
 from tempfile import mkstemp
 from hashlib import sha1 as SHA1
+from shutil import copy
+
+import pefile
+import requests
 
 
 # Support unbuffered, colored console output.
@@ -28,6 +30,8 @@ sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 ctypes.windll.Kernel32.GetStdHandle.restype = ctypes.c_ulong
 
 
+HTPC_UPDATER_RELEASES = 'https://api.github.com/repos/nikola/htpc-updater/releases'
+HTPC_UPDATER_DL_PATH = 'https://github.com/nikola/htpc-updater/releases/download/{0}/htpc-updater-{0}.zip'
 MPCHC_TAGS = 'https://api.github.com/repos/mpc-hc/mpc-hc/tags'
 MPCHC_DOWNLADS = 'http://mpc-hc.org/downloads/'
 LAVFILTERS_CLSID = '{171252A0-8820-4AFE-9DF8-5C92B2D66B04}'
@@ -92,6 +96,14 @@ def _writeTempFile(payload):
     return pathname
 
 
+def _getLongPathName(pathname):
+    from ctypes import windll, create_unicode_buffer
+    buf = create_unicode_buffer(500)
+    WinPath = windll.kernel32.GetLongPathNameW
+    WinPath(unicode(pathname), buf, 500)
+    return str(buf.value)
+
+
 def _getDefaultInstallationPath(component):
     pathname = os.path.join(DEFAULT_PATH, component)
     if not os.path.exists(pathname):
@@ -135,9 +147,19 @@ def _getComVersionLocation(key):
         return version, os.path.dirname(location)
 
 
+def _getLatestGitHubReleaseVersion(url):
+    try:
+        response = requests.get(url, headers=HEADERS_TRACKABLE).json()
+        latestVersion = response[0].get('tag_name')
+    except:
+        latestVersion = None
+
+    return latestVersion
+
+
 def _mpcHc_getLatestReleaseVersion(self):
     try:
-        latestVersion = '.'.join(map(str, max([_versiontuple(tag.get('name')) for tag in requests.get(MPCHC_TAGS).json()])))
+        latestVersion = '.'.join(map(str, max([_versiontuple(tag.get('name')) for tag in requests.get(MPCHC_TAGS, headers=HEADERS_TRACKABLE).json()])))
     except:
         latestVersion = None
 
@@ -157,7 +179,7 @@ def _mpcHc_getInstalledVersion(self):
 
 def _mpcHc_installLatestReleaseVersion(self, releaseVersion, currentMpcHcPath):
     _writeAnyText('Identifying filename of MPC-HC download ...')
-    response = requests.get(MPCHC_DOWNLADS).text
+    response = requests.get(MPCHC_DOWNLADS, headers=HEADERS_TRACKABLE).text
     initialUrl = re.search('<a href="([^\"]+)">installer</a>', response).group(1)
     _writeAnyText(' done.\n')
 
@@ -200,13 +222,7 @@ def _mpcHc_installLatestReleaseVersion(self, releaseVersion, currentMpcHcPath):
 
 
 def _lavFilters_getLatestReleaseVersion(self):
-    try:
-        response = requests.get(LAVFILTERS_RELEASES).json()
-        latestVersion = response[0].get('tag_name')
-    except:
-        latestVersion = None
-
-    return latestVersion
+    return _getLatestGitHubReleaseVersion(LAVFILTERS_RELEASES)
 
 
 def _lavFilters_getInstalledVersion(self):
@@ -220,7 +236,7 @@ def _lavFilters_installLatestReleaseVersion(self, releaseVersion, currentLavFilt
     url = LAVFILTERS_DL_PATH.format(releaseVersion)
 
     _writeAnyText('Downloading %s ...' % url)
-    response = requests.get(url).content
+    response = requests.get(url, headers=HEADERS_TRACKABLE).content
     _writeAnyText(' done.\n')
 
     pathname = _writeTempFile(response)
@@ -267,8 +283,7 @@ def _madVr_installLatestReleaseVersion(self, releaseVersion, currentMadVrPath):
     _writeAnyText('Installing madVR %s ...' % releaseVersion)
     madVrInstallationPath = currentMadVrPath or _getDefaultInstallationPath('madVR')
 
-    madVrZipArchive = ZipFile(StringIO(madVrZipFile))
-    madVrZipArchive.extractall(madVrInstallationPath)
+    ZipFile(StringIO(madVrZipFile)).extractall(madVrInstallationPath)
 
     regSvr = os.path.join(os.environ['SYSTEMROOT'], 'System32', 'regsvr32')
     cmdArg = os.path.join(madVrInstallationPath, 'madVR.ax')
@@ -296,7 +311,7 @@ class Component(object):
         raise NotImplementedError
 
 
-def run():
+def updateComponents():
     components = [
         ('MPC-HC', Component(r'MPC-HC\MPC-HC',
             getLatestReleaseVersion =_mpcHc_getLatestReleaseVersion,
@@ -308,7 +323,7 @@ def run():
             getInstalledVersion = _lavFilters_getInstalledVersion,
             installLatestReleaseVersion = _lavFilters_installLatestReleaseVersion,
         )),
-         ('madVR', Component(MADVR_CLSID,
+        ('madVR', Component(MADVR_CLSID,
             getLatestReleaseVersion =_madVr_getLatestReleaseVersion,
             getInstalledVersion = _madVr_getInstalledVersion,
             installLatestReleaseVersion = _madVr_installLatestReleaseVersion,
@@ -354,9 +369,50 @@ def run():
         _writeOkText('\n')
 
 
-if __name__ == "__main__":
+def _updateSelf():
+    if hasattr(sys, 'frozen'):
+        htpcUpdaterExecutable = _getLongPathName(sys.executable)
+        htpcUpdaterDirectory = os.path.dirname(htpcUpdaterExecutable)
+
+        _writeAnyText('Checking for new version of htpc-updater ...')
+        releaseVersion = _getLatestGitHubReleaseVersion(HTPC_UPDATER_RELEASES)
+        if _versiontuple(releaseVersion) > _versiontuple(__version__):
+            _writeAnyText(' %s is available, starting upgrade process.\n' % releaseVersion)
+
+            url = HTPC_UPDATER_DL_PATH.format(releaseVersion)
+            _writeAnyText('Downloading %s ...' % url)
+            htpcUpdaterZipFile = requests.get(url, headers=HEADERS_TRACKABLE).content
+            _writeAnyText(' done.\n')
+
+            htpcUpdaterNew = _writeTempFile(ZipFile(StringIO(htpcUpdaterZipFile)).open('htpc-updater.exe').read())
+
+            args = sys.argv[:]
+            args = ['"%s"' % arg for arg in args]
+            args.append('"--relaunch=%s"' % htpcUpdaterDirectory)
+
+            _writeAnyText('Restarting htpc-updater ...\n\n')
+            os.chdir(os.path.dirname(htpcUpdaterNew))
+            os.execv(htpcUpdaterNew, args)
+        else:
+            _writeAnyText(' %s is the latest version.\n\n' % __version__)
+
+
+def _isUpdatingSelf():
+    return bool(len(sys.argv) == 2 and sys.argv[1].startswith('--relaunch'))
+
+
+def _cleanupUpdate():
+    copy(_getLongPathName(sys.executable), os.path.join(sys.argv[1][sys.argv[1].index('=')+1:], 'htpc-updater.exe'))
+
+
+if __name__ == '__main__':
     _writeAnyText('htpc-updater %s (https://github.com/nikola/htpc-updater)\n\n' % __version__)
 
-    run()
+    if _isUpdatingSelf():
+        _cleanupUpdate()
+    else:
+        _updateSelf()
+
+    updateComponents()
 
     _black() and raw_input('Press ENTER to exit ...')
