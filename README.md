@@ -33,7 +33,7 @@ If a component is already installed on your machine, htpc-updater (or the instal
 
 As of this writing, htpc-updater is known to work on:
 
-* Windows 7 64-bit, Windows 8.1 64-bit.
+* Windows 7 64-bit, Windows 8.1 32/64-bit.
 
 It _should_ work on other versions of Windows, too.
 
