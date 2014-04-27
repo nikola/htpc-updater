@@ -3,10 +3,11 @@
 """
 __author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.4.0'
+__version__ = '0.5.0'
 
 import sys
 import os
+import argparse
 import re
 import types
 import time
@@ -34,6 +35,9 @@ HTPC_UPDATER_RELEASES = 'https://api.github.com/repos/nikola/htpc-updater/releas
 HTPC_UPDATER_DL_PATH = 'https://github.com/nikola/htpc-updater/releases/download/{0}/htpc-updater-{0}.zip'
 MPCHC_TAGS = 'https://api.github.com/repos/mpc-hc/mpc-hc/tags'
 MPCHC_DOWNLADS = 'http://mpc-hc.org/downloads/'
+MPCHC_NIGHTLY_URL = 'http://nightly.mpc-hc.org/'
+MPCHC_NIGHTLY_H5AI_QUERY = {'action':'get', 'items': 'true', 'itemsHref':'/', 'itemsWhat': '1'}
+MPCHC_NIGHTLY_DL_PATH = 'http://nightly.mpc-hc.org/MPC-HC.{0}.x86.exe'
 LAVFILTERS_CLSID = '{171252A0-8820-4AFE-9DF8-5C92B2D66B04}'
 LAVFILTERS_RELEASES = 'https://api.github.com/repos/Nevcairiel/LAVFilters/releases'
 LAVFILTERS_DL_PATH = 'https://github.com/Nevcairiel/LAVFilters/releases/download/{0}/LAVFilters-{0}-Installer.exe'
@@ -159,11 +163,23 @@ def _getLatestGitHubReleaseVersion(url):
 
 def _mpcHc_getLatestReleaseVersion(self):
     try:
-        latestVersion = '.'.join(map(str, max([_versiontuple(tag.get('name')) for tag in requests.get(MPCHC_TAGS, headers=HEADERS_TRACKABLE).json()])))
+        latestReleaseVersion = '.'.join(map(str, max([_versiontuple(tag.get('name'))
+            for tag in requests.get(MPCHC_TAGS, headers=HEADERS_TRACKABLE).json()])))
     except:
-        latestVersion = None
+        latestReleaseVersion = None
 
-    return latestVersion
+    return latestReleaseVersion
+
+
+def _mpcHc_getLatestPreReleaseVersion(self):
+    try:
+        items = requests.post(MPCHC_NIGHTLY_URL, MPCHC_NIGHTLY_H5AI_QUERY, headers=HEADERS_SF).json().get('items')
+        latestPreReleaseVersion = re.match(r'^/MPC-HC\.((\d+\.?)+)\.x86\.exe$',
+            filter(lambda i: i.get('absHref').endswith('.x86.exe'), items)[0].get('absHref')).group(1)
+    except:
+        latestPreReleaseVersion = None
+
+    return latestPreReleaseVersion
 
 
 def _mpcHc_getInstalledVersion(self):
@@ -175,6 +191,16 @@ def _mpcHc_getInstalledVersion(self):
         return None, None
     else:
         return version, os.path.dirname(location)
+
+
+def _mpcHc_install(exe, version):
+    pathname = _writeTempFile(exe)
+
+    _writeAnyText('Installing MPC-HC %s ...' % version)
+    os.system('""%s" /NORESTART /NOCLOSEAPPLICATIONS""' % pathname)
+    _writeAnyText(' done.\n')
+
+    os.remove(pathname)
 
 
 def _mpcHc_installLatestReleaseVersion(self, releaseVersion, currentMpcHcPath):
@@ -210,13 +236,18 @@ def _mpcHc_installLatestReleaseVersion(self, releaseVersion, currentMpcHcPath):
         else:
             break
 
-    pathname = _writeTempFile(response)
+    _mpcHc_install(response, releaseVersion)
 
-    _writeAnyText('Installing MPC-HC %s ...' % releaseVersion)
-    os.system('""%s" /NORESTART /NOCLOSEAPPLICATIONS""' % pathname)
+    return _mpcHc_getInstalledVersion(self)[1]
+
+
+def _mpcHc_installLatestPreReleaseVersion(self, preReleaseVersion, currentMpcHcPath):
+    url = MPCHC_NIGHTLY_DL_PATH.format(preReleaseVersion)
+    _writeAnyText('Downloading %s ...' % url)
+    response = requests.get(url, headers=HEADERS_TRACKABLE).content
     _writeAnyText(' done.\n')
 
-    os.remove(pathname)
+    _mpcHc_install(response, preReleaseVersion)
 
     return _mpcHc_getInstalledVersion(self)[1]
 
@@ -301,48 +332,51 @@ class Component(object):
         for method in map(itemgetter(0), inspect.getmembers(self, predicate=inspect.ismethod)):
             if method in kwargs: setattr(self, method, types.MethodType(kwargs.get(method), self))
 
-    def getLatestReleaseVersion(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def getInstalledVersion(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def installLatestReleaseVersion(self, *args, **kwargs):
-        raise NotImplementedError
+    def getLatestReleaseVersion(self, *args, **kwargs): pass
+    def getLatestPreReleaseVersion(self, *args, **kwargs): pass
+    def getInstalledVersion(self, *args, **kwargs): pass
+    def installLatestReleaseVersion(self, *args, **kwargs): pass
+    def installLatestPreReleaseVersion(self, *args, **kwargs): pass
 
 
-def updateComponents():
+def updateComponents(arguments):
+    installPreReleaseList = vars(arguments).get('installPreReleaseList') or ''
+
     components = [
-        ('MPC-HC', Component(r'MPC-HC\MPC-HC',
+        ('MPC-HC', 'mpchc' in installPreReleaseList, Component(r'MPC-HC\MPC-HC',
             getLatestReleaseVersion =_mpcHc_getLatestReleaseVersion,
+            getLatestPreReleaseVersion =_mpcHc_getLatestPreReleaseVersion,
             getInstalledVersion = _mpcHc_getInstalledVersion,
             installLatestReleaseVersion = _mpcHc_installLatestReleaseVersion,
+            installLatestPreReleaseVersion = _mpcHc_installLatestPreReleaseVersion,
         )),
-        ('LAV Filters', Component(LAVFILTERS_CLSID,
+        ('LAV Filters', 'lavfilters' in installPreReleaseList, Component(LAVFILTERS_CLSID,
             getLatestReleaseVersion =_lavFilters_getLatestReleaseVersion,
             getInstalledVersion = _lavFilters_getInstalledVersion,
             installLatestReleaseVersion = _lavFilters_installLatestReleaseVersion,
         )),
-        ('madVR', Component(MADVR_CLSID,
+        ('madVR', 'madvr' in installPreReleaseList, Component(MADVR_CLSID,
             getLatestReleaseVersion =_madVr_getLatestReleaseVersion,
             getInstalledVersion = _madVr_getInstalledVersion,
             installLatestReleaseVersion = _madVr_installLatestReleaseVersion,
         )),
     ]
 
-    for name, instance in components:
-        releaseVersion = instance.getLatestReleaseVersion()
-        if releaseVersion is None:
-            _writeNotOkText('ERROR: Could not retrieve version info of the latest %s release.\n' % name)
+    for name, pre, instance in components:
+        prefix = 'pre-' if pre else ''
+
+        latestVersion = instance.getLatestPreReleaseVersion() if pre else instance.getLatestReleaseVersion()
+        if latestVersion is None:
+            _writeNotOkText('ERROR: Could not retrieve version info of the latest %s %srelease.\n' % (name, prefix))
         else:
-            _writeAnyText('Latest release version of %s: %s\n' % (name, releaseVersion))
+            _writeAnyText('Latest %srelease version of %s: %s\n' % (prefix, name, latestVersion))
 
             installedVersion, detectedInstallationPath = instance.getInstalledVersion()
             mustInstall = False
             if installedVersion is not None:
                 _writeAnyText('Installed version: %s\n\t%s\n' % (installedVersion, detectedInstallationPath))
 
-                if _versiontuple(installedVersion) < _versiontuple(releaseVersion):
+                if _versiontuple(installedVersion) < _versiontuple(latestVersion):
                     mustInstall = True
                 else:
                     _writeOkText('%s does not need to be updated.\n' % name)
@@ -352,14 +386,17 @@ def updateComponents():
 
             if mustInstall:
                 try:
-                    currentInstallationPath = instance.installLatestReleaseVersion(releaseVersion, detectedInstallationPath)
+                    if pre:
+                        currentInstallationPath = instance.installLatestPreReleaseVersion(latestVersion, detectedInstallationPath)
+                    else:
+                        currentInstallationPath = instance.installLatestReleaseVersion(latestVersion, detectedInstallationPath)
                 except Exception, e:
                     _writeNotOkText(' ERROR: %s\n' % e.message)
                 else:
                     if currentInstallationPath is not None:
                         if detectedInstallationPath != currentInstallationPath:
                             _writeAnyText('%s %s is now installed in:\n\t%s\n'
-                                % (name, releaseVersion, currentInstallationPath))
+                                % (name, latestVersion, currentInstallationPath))
                             if installedVersion is not None:
                                 _writeAnyText('Your previous installation of %s %s remains in:\n\t%s\n'
                                     % (name, installedVersion, detectedInstallationPath))
@@ -397,22 +434,28 @@ def _updateSelf():
             _writeAnyText(' %s is the latest version.\n\n' % __version__)
 
 
-def _isUpdatingSelf():
-    return bool(len(sys.argv) == 2 and sys.argv[1].startswith('--relaunch'))
+def _isUpdatingSelf(arguments):
+    return bool(vars(arguments).get('relaunch'))
 
 
-def _cleanupUpdate():
-    copy(_getLongPathName(sys.executable), os.path.join(sys.argv[1][sys.argv[1].index('=')+1:], 'htpc-updater.exe'))
+def _cleanupUpdate(arguments):
+    copy(_getLongPathName(sys.executable), os.path.join(vars(arguments).get('relaunch'), 'htpc-updater.exe'))
 
 
 if __name__ == '__main__':
     _writeAnyText('htpc-updater %s (https://github.com/nikola/htpc-updater)\n\n' % __version__)
 
-    if _isUpdatingSelf():
-        _cleanupUpdate()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--install-pre-release', dest='installPreReleaseList', action='store',
+        help='Install pre-release versions of comma-separated argument if available.')
+    parser.add_argument('--relaunch', action='store')
+    args = parser.parse_args()
+
+    if _isUpdatingSelf(args):
+        _cleanupUpdate(args)
     else:
         _updateSelf()
 
-    updateComponents()
+    updateComponents(args)
 
     _black() and raw_input('Press ENTER to exit ...')
