@@ -21,6 +21,7 @@ from operator import itemgetter
 from tempfile import mkstemp
 from hashlib import sha1 as SHA1
 from shutil import copy
+from ctypes import windll, create_unicode_buffer
 
 import pefile
 import requests
@@ -101,7 +102,6 @@ def _writeTempFile(payload):
 
 
 def _getLongPathName(pathname):
-    from ctypes import windll, create_unicode_buffer
     buf = create_unicode_buffer(500)
     WinPath = windll.kernel32.GetLongPathNameW
     WinPath(unicode(pathname), buf, 500)
@@ -173,7 +173,7 @@ def _mpcHc_getLatestReleaseVersion(self):
 
 def _mpcHc_getLatestPreReleaseVersion(self):
     try:
-        items = requests.post(MPCHC_NIGHTLY_URL, MPCHC_NIGHTLY_H5AI_QUERY, headers=HEADERS_SF).json().get('items')
+        items = requests.post(MPCHC_NIGHTLY_URL, MPCHC_NIGHTLY_H5AI_QUERY, headers=HEADERS_TRACKABLE).json().get('items')
         latestPreReleaseVersion = re.match(r'^/MPC-HC\.((\d+\.?)+)\.x86\.exe$',
             filter(lambda i: i.get('absHref').endswith('.x86.exe'), items)[0].get('absHref')).group(1)
     except:
