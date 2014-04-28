@@ -3,7 +3,7 @@
 """
 __author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.5.1'
+__version__ = '0.5.2'
 
 import sys
 import os
@@ -340,7 +340,7 @@ class Component(object):
 
 
 def updateComponents(arguments):
-    installPreReleaseList = vars(arguments).get('installPreReleaseList') or ''
+    installPreReleaseList = arguments.get('installPreReleaseList') or ''
 
     components = [
         ('MPC-HC', 'mpchc' in installPreReleaseList, Component(r'MPC-HC\MPC-HC',
@@ -441,11 +441,11 @@ def _updateSelf():
 
 
 def _isUpdatingSelf(arguments):
-    return bool(vars(arguments).get('relaunch'))
+    return bool(arguments.get('relaunch'))
 
 
 def _cleanupUpdate(arguments):
-    copy(_getLongPathName(sys.executable), os.path.join(vars(arguments).get('relaunch'), 'htpc-updater.exe'))
+    copy(_getLongPathName(sys.executable), os.path.join(arguments.get('relaunch'), 'htpc-updater.exe'))
 
 
 if __name__ == '__main__':
@@ -454,8 +454,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--install-pre-release', dest='installPreReleaseList', action='store',
         help='Install pre-release versions of comma-separated argument if available.')
+    parser.add_argument('--auto-exit', dest='autoExit', action='store_true',
+        help='Close htpc-updater without prompt for ENTER key.')
     parser.add_argument('--relaunch', action='store')
-    args = parser.parse_args()
+    args = vars(parser.parse_args())
 
     if _isUpdatingSelf(args):
         _cleanupUpdate(args)
@@ -464,4 +466,6 @@ if __name__ == '__main__':
 
     updateComponents(args)
 
-    _black() and raw_input('Press ENTER to exit ...')
+    _black()
+    if not args.get('autoExit'):
+        raw_input('Press ENTER to exit ...')
