@@ -3,33 +3,33 @@
 """
 __author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.5.0'
+__version__ = '0.5.1'
 
 import sys
 import os
 import argparse
 import re
-import types
 import time
 import random
-import ctypes
-import inspect
 import _winreg as registry
+from inspect import getmembers, ismethod
+from types import MethodType
 from zipfile import ZipFile
 from cStringIO import StringIO
 from operator import itemgetter
 from tempfile import mkstemp
 from hashlib import sha1 as SHA1
 from shutil import copy
-from ctypes import windll, create_unicode_buffer
+from ctypes import windll, c_ulong, create_unicode_buffer
 
 import pefile
 import requests
 
 
+
 # Support unbuffered, colored console output.
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
-ctypes.windll.Kernel32.GetStdHandle.restype = ctypes.c_ulong
+windll.Kernel32.GetStdHandle.restype = c_ulong
 
 
 HTPC_UPDATER_RELEASES = 'https://api.github.com/repos/nikola/htpc-updater/releases'
@@ -52,7 +52,7 @@ MADVR_URL_VERSION = 'http://madshi.net/madVR/version.txt'
 MADVR_URL_HASH = 'http://madshi.net/madVR/sha1.txt'
 MADVR_URL_ZIP = 'http://madshi.net/madVR.zip'
 DEFAULT_PATH = os.environ['PROGRAMFILES']
-CONSOLE_HANDLER = ctypes.windll.Kernel32.GetStdHandle(ctypes.c_ulong(0xfffffff5))
+CONSOLE_HANDLER = windll.Kernel32.GetStdHandle(c_ulong(0xfffffff5))
 
 
 # Enable SSL support in requests library when running as EXE.
@@ -61,15 +61,15 @@ if getattr(sys, 'frozen', None):
 
 
 def _black():
-    return ctypes.windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, 15)
+    return windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, 15)
 
 
 def _green():
-    return ctypes.windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, 10)
+    return windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, 10)
 
 
 def _red():
-    return ctypes.windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, 12)
+    return windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, 12)
 
 
 def _writeAnyText(text):
@@ -329,8 +329,8 @@ class Component(object):
 
     def __init__(self, *args, **kwargs):
         self._identifier = args[0]
-        for method in map(itemgetter(0), inspect.getmembers(self, predicate=inspect.ismethod)):
-            if method in kwargs: setattr(self, method, types.MethodType(kwargs.get(method), self))
+        for method in map(itemgetter(0), getmembers(self, predicate=ismethod)):
+            if method in kwargs: setattr(self, method, MethodType(kwargs.get(method), self))
 
     def getLatestReleaseVersion(self, *args, **kwargs): pass
     def getLatestPreReleaseVersion(self, *args, **kwargs): pass
@@ -427,9 +427,15 @@ def _updateSelf():
             args = ['"%s"' % arg for arg in args]
             args.append('"--relaunch=%s"' % htpcUpdaterDirectory)
 
+            # Clear the PATH so that MSVCRT libraries are not conflicting with libraries
+            # from other programs that ship their own, avoiding error R6034.
+            # This only affects the currently running htpc-updater.exe.
+            environ = os.environ.copy()
+            environ.pop('PATH', None)
+
             _writeAnyText('Restarting htpc-updater ...\n\n')
             os.chdir(os.path.dirname(htpcUpdaterNew))
-            os.execv(htpcUpdaterNew, args)
+            os.execve(htpcUpdaterNew, args, environ)
         else:
             _writeAnyText(' %s is the latest version.\n\n' % __version__)
 
