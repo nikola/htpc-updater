@@ -3,7 +3,7 @@
 """
 __author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.5.2'
+__version__ = '0.6.0'
 
 import sys
 import os
@@ -53,6 +53,7 @@ MADVR_URL_HASH = 'http://madshi.net/madVR/sha1.txt'
 MADVR_URL_ZIP = 'http://madshi.net/madVR.zip'
 DEFAULT_PATH = os.environ['PROGRAMFILES']
 CONSOLE_HANDLER = windll.Kernel32.GetStdHandle(c_ulong(0xfffffff5))
+BLACK, GREEN, RED = 15, 10, 12
 
 
 # Enable SSL support in requests library when running as EXE.
@@ -60,28 +61,9 @@ if getattr(sys, 'frozen', None):
      os.environ['REQUESTS_CA_BUNDLE'] = os.path.join(sys._MEIPASS, 'cacert.pem')
 
 
-def _black():
-    return windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, 15)
-
-
-def _green():
-    return windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, 10)
-
-
-def _red():
-    return windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, 12)
-
-
-def _writeAnyText(text):
-    _black() and sys.stdout.write(text)
-
-
-def _writeOkText(text):
-    _green() and sys.stdout.write(text)
-
-
-def _writeNotOkText(text):
-    _red() and sys.stdout.write(text)
+def _log(text, color=BLACK):
+    windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, color)
+    sys.stdout.write(text)
 
 
 def _versiontuple(version):
@@ -193,61 +175,62 @@ def _mpcHc_getInstalledVersion(self):
         return version, os.path.dirname(location)
 
 
-def _mpcHc_install(exe, version):
+def _mpcHc_install(exe, version, silent):
     pathname = _writeTempFile(exe)
 
-    _writeAnyText('Installing MPC-HC %s ...' % version)
-    os.system('""%s" /NORESTART /NOCLOSEAPPLICATIONS""' % pathname)
-    _writeAnyText(' done.\n')
+    _log('Installing MPC-HC %s ...' % version)
+    verySilent = '/VERYSILENT ' if silent else ''
+    os.system('""%s" /NORESTART %s/NOCLOSEAPPLICATIONS""' % (pathname, verySilent))
+    _log(' done.\n')
 
     os.remove(pathname)
 
 
-def _mpcHc_installLatestReleaseVersion(self, releaseVersion, currentMpcHcPath):
-    _writeAnyText('Identifying filename of MPC-HC download ...')
+def _mpcHc_installLatestReleaseVersion(self, releaseVersion, silent=False, *args, **kwargs):
+    _log('Identifying filename of MPC-HC download ...')
     response = requests.get(MPCHC_DOWNLADS, headers=HEADERS_TRACKABLE).text
     initialUrl = re.search('<a href="([^\"]+)">installer</a>', response).group(1)
-    _writeAnyText(' done.\n')
+    _log(' done.\n')
 
     retries = 0
     while True:
-        _writeAnyText('Selecting filehost for MPC-HC download ...')
+        _log('Selecting filehost for MPC-HC download ...')
         response = requests.get(initialUrl, headers=HEADERS_SF).text
         filehostResolver = re.search('<meta[^>]*?url=(.*?)["\']', response, re.I).group(1)
         filehostName = re.search('use_mirror=([a-z\-]+)', filehostResolver).group(1)
         filehostUrl = filehostResolver[:filehostResolver.index('?')].replace('downloads', filehostName + '.dl')
-        _writeAnyText(' done: %s.\n' % filehostName)
+        _log(' done: %s.\n' % filehostName)
 
         time.sleep(1)
 
-        _writeAnyText('Downloading %s ...' % filehostUrl)
+        _log('Downloading %s ...' % filehostUrl)
         response = requests.get(filehostUrl, headers=HEADERS_SF).content
-        _writeAnyText(' done.\n')
+        _log(' done.\n')
 
         if response.strip().endswith('</html>') or len(response) < 1e6:
             retries += 1
 
             if retries < 10:
-                _writeNotOkText('Selected filehost is not serving MPC-HC %s, trying another filehost.\n' % releaseVersion)
+                _log('Selected filehost is not serving MPC-HC %s, trying another filehost.\n' % releaseVersion, RED)
                 time.sleep(2)
             else:
-                _writeNotOkText('It appears no filehost can be found serving MPC-HC %s, aborting for now.\n' % releaseVersion)
+                _log('It appears no filehost can be found serving MPC-HC %s, aborting for now.\n' % releaseVersion, RED)
                 return
         else:
             break
 
-    _mpcHc_install(response, releaseVersion)
+    _mpcHc_install(response, releaseVersion, silent)
 
     return _mpcHc_getInstalledVersion(self)[1]
 
 
-def _mpcHc_installLatestPreReleaseVersion(self, preReleaseVersion, currentMpcHcPath):
+def _mpcHc_installLatestPreReleaseVersion(self, preReleaseVersion, silent=False, *args, **kwargs):
     url = MPCHC_NIGHTLY_DL_PATH.format(preReleaseVersion)
-    _writeAnyText('Downloading %s ...' % url)
+    _log('Downloading %s ...' % url)
     response = requests.get(url, headers=HEADERS_TRACKABLE).content
-    _writeAnyText(' done.\n')
+    _log(' done.\n')
 
-    _mpcHc_install(response, preReleaseVersion)
+    _mpcHc_install(response, preReleaseVersion, silent)
 
     return _mpcHc_getInstalledVersion(self)[1]
 
@@ -263,18 +246,18 @@ def _lavFilters_getInstalledVersion(self):
     return version, location
 
 
-def _lavFilters_installLatestReleaseVersion(self, releaseVersion, currentLavFiltersPath):
+def _lavFilters_installLatestReleaseVersion(self, releaseVersion, silent=False, *args, **kwargs):
     url = LAVFILTERS_DL_PATH.format(releaseVersion)
 
-    _writeAnyText('Downloading %s ...' % url)
+    _log('Downloading %s ...' % url)
     response = requests.get(url, headers=HEADERS_TRACKABLE).content
-    _writeAnyText(' done.\n')
+    _log(' done.\n')
 
     pathname = _writeTempFile(response)
 
-    _writeAnyText('Installing LAV Filters %s ...' % releaseVersion)
+    _log('Installing LAV Filters %s ...' % releaseVersion)
     os.system('""%s" /NORESTART /NOCLOSEAPPLICATIONS""' % pathname)
-    _writeAnyText(' done.\n')
+    _log(' done.\n')
 
     os.remove(pathname)
 
@@ -294,24 +277,24 @@ def _madVr_getInstalledVersion(self):
     return _getComVersionLocation(self._identifier)
 
 
-def _madVr_installLatestReleaseVersion(self, releaseVersion, currentMadVrPath):
-    _writeAnyText('Downloading %s ...' % MADVR_URL_ZIP)
+def _madVr_installLatestReleaseVersion(self, releaseVersion, currentMadVrPath, *args, **kwargs):
+    _log('Downloading %s ...' % MADVR_URL_ZIP)
     madVrZipFile = requests.get(MADVR_URL_ZIP, headers=HEADERS_TRACKABLE).content
-    _writeAnyText(' done.\n')
+    _log(' done.\n')
 
-    _writeAnyText('Verifying SHA1 of downloaded ZIP file ...')
+    _log('Verifying SHA1 of downloaded ZIP file ...')
     madVrZipHashShould = requests.get(MADVR_URL_HASH, headers=HEADERS_TRACKABLE).content
     sha1 = SHA1()
     sha1.update(madVrZipFile)
     madVrZipHashIs = sha1.hexdigest()
     if madVrZipHashIs == madVrZipHashShould:
-        _writeAnyText(' OK!\n')
+        _log(' OK!\n')
     else:
-        _writeNotOkText(' ERROR: SHA1 is %s but should be %s!\n' % (madVrZipHashIs, madVrZipHashShould))
-        _writeNotOkText('Aborting installation of madVR %s.\n' % releaseVersion)
+        _log(' ERROR: SHA1 is %s but should be %s!\n' % (madVrZipHashIs, madVrZipHashShould), RED)
+        _log('Aborting installation of madVR %s.\n' % releaseVersion, RED)
         return
 
-    _writeAnyText('Installing madVR %s ...' % releaseVersion)
+    _log('Installing madVR %s ...' % releaseVersion)
     madVrInstallationPath = currentMadVrPath or _getDefaultInstallationPath('madVR')
 
     ZipFile(StringIO(madVrZipFile)).extractall(madVrInstallationPath)
@@ -320,7 +303,7 @@ def _madVr_installLatestReleaseVersion(self, releaseVersion, currentMadVrPath):
     cmdArg = os.path.join(madVrInstallationPath, 'madVR.ax')
     os.system('""%s" /s "%s""' % (regSvr, cmdArg))
 
-    _writeAnyText(' done.\n')
+    _log(' done.\n')
 
     return madVrInstallationPath
 
@@ -341,69 +324,84 @@ class Component(object):
 
 def updateComponents(arguments):
     installPreReleaseList = arguments.get('installPreReleaseList') or ''
+    silentInstallList = arguments.get('silentInstallList') or ''
 
     components = [
-        ('MPC-HC', 'mpchc' in installPreReleaseList, Component(r'MPC-HC\MPC-HC',
-            getLatestReleaseVersion =_mpcHc_getLatestReleaseVersion,
-            getLatestPreReleaseVersion =_mpcHc_getLatestPreReleaseVersion,
-            getInstalledVersion = _mpcHc_getInstalledVersion,
-            installLatestReleaseVersion = _mpcHc_installLatestReleaseVersion,
-            installLatestPreReleaseVersion = _mpcHc_installLatestPreReleaseVersion,
-        )),
-        ('LAV Filters', 'lavfilters' in installPreReleaseList, Component(LAVFILTERS_CLSID,
-            getLatestReleaseVersion =_lavFilters_getLatestReleaseVersion,
-            getInstalledVersion = _lavFilters_getInstalledVersion,
-            installLatestReleaseVersion = _lavFilters_installLatestReleaseVersion,
-        )),
-        ('madVR', 'madvr' in installPreReleaseList, Component(MADVR_CLSID,
-            getLatestReleaseVersion =_madVr_getLatestReleaseVersion,
-            getInstalledVersion = _madVr_getInstalledVersion,
-            installLatestReleaseVersion = _madVr_installLatestReleaseVersion,
-        )),
+        ('MPC-HC',
+            'mpchc' in installPreReleaseList,
+            'mpchc' in silentInstallList,
+            Component(r'MPC-HC\MPC-HC',
+                getLatestReleaseVersion =_mpcHc_getLatestReleaseVersion,
+                getLatestPreReleaseVersion =_mpcHc_getLatestPreReleaseVersion,
+                getInstalledVersion = _mpcHc_getInstalledVersion,
+                installLatestReleaseVersion = _mpcHc_installLatestReleaseVersion,
+                installLatestPreReleaseVersion = _mpcHc_installLatestPreReleaseVersion,
+            )
+        ),
+        ('LAV Filters',
+            'lavfilters' in installPreReleaseList,
+            'lavfilters' in silentInstallList,
+            Component(LAVFILTERS_CLSID,
+                getLatestReleaseVersion =_lavFilters_getLatestReleaseVersion,
+                getInstalledVersion = _lavFilters_getInstalledVersion,
+                installLatestReleaseVersion = _lavFilters_installLatestReleaseVersion,
+            )
+        ),
+        ('madVR',
+            'madvr' in installPreReleaseList,
+            'madvr' in silentInstallList,
+            Component(MADVR_CLSID,
+                getLatestReleaseVersion =_madVr_getLatestReleaseVersion,
+                getInstalledVersion = _madVr_getInstalledVersion,
+                installLatestReleaseVersion = _madVr_installLatestReleaseVersion,
+            )
+        ),
     ]
 
-    for name, pre, instance in components:
+    for name, pre, silent, instance in components:
+        _log('\n')
+
         prefix = 'pre-' if pre else ''
 
         latestVersion = instance.getLatestPreReleaseVersion() if pre else instance.getLatestReleaseVersion()
         if latestVersion is None:
-            _writeNotOkText('ERROR: Could not retrieve version info of the latest %s %srelease.\n' % (name, prefix))
+            _log('ERROR: Could not retrieve version info of the latest %s %srelease.\n' % (name, prefix), RED)
         else:
-            _writeAnyText('Latest %srelease version of %s: %s\n' % (prefix, name, latestVersion))
+            _log('Latest %srelease version of %s: %s\n' % (prefix, name, latestVersion))
 
             installedVersion, detectedInstallationPath = instance.getInstalledVersion()
             mustInstall = False
             if installedVersion is not None:
-                _writeAnyText('Installed version: %s\n\t%s\n' % (installedVersion, detectedInstallationPath))
+                _log('Installed version: %s\n\t%s\n' % (installedVersion, detectedInstallationPath))
 
                 if _versiontuple(installedVersion) < _versiontuple(latestVersion):
                     mustInstall = True
                 else:
-                    _writeOkText('%s does not need to be updated.\n' % name)
+                    _log('%s does not need to be updated.\n' % name, GREEN)
             else:
-                _writeAnyText('%s does not seem to be installed on the local machine.\n' % name)
+                _log('%s does not seem to be installed on the local machine.\n' % name)
                 mustInstall = True
 
             if mustInstall:
                 try:
                     if pre:
-                        currentInstallationPath = instance.installLatestPreReleaseVersion(latestVersion, detectedInstallationPath)
+                        currentInstallationPath = instance.installLatestPreReleaseVersion(latestVersion, detectedInstallationPath, silent)
                     else:
-                        currentInstallationPath = instance.installLatestReleaseVersion(latestVersion, detectedInstallationPath)
+                        currentInstallationPath = instance.installLatestReleaseVersion(latestVersion, detectedInstallationPath, silent)
                 except Exception, e:
-                    _writeNotOkText(' ERROR: %s\n' % e.message)
+                    _log(' ERROR: %s\n' % e.message, RED)
                 else:
                     if currentInstallationPath is not None:
                         if detectedInstallationPath != currentInstallationPath:
-                            _writeAnyText('%s %s is now installed in:\n\t%s\n'
+                            _log('%s %s is now installed in:\n\t%s\n'
                                 % (name, latestVersion, currentInstallationPath))
                             if installedVersion is not None:
-                                _writeAnyText('Your previous installation of %s %s remains in:\n\t%s\n'
+                                _log('Your previous installation of %s %s remains in:\n\t%s\n'
                                     % (name, installedVersion, detectedInstallationPath))
-                        _writeOkText('Successfully %s %s. No errors.\n'
-                            % ('updated' if installedVersion is not None else 'installed', name))
+                        _log('Successfully %s %s. No errors.\n'
+                            % ('updated' if installedVersion is not None else 'installed', name), GREEN)
 
-        _writeOkText('\n')
+
 
 
 def _updateSelf():
@@ -411,15 +409,15 @@ def _updateSelf():
         htpcUpdaterExecutable = _getLongPathName(sys.executable)
         htpcUpdaterDirectory = os.path.dirname(htpcUpdaterExecutable)
 
-        _writeAnyText('Checking for new version of htpc-updater ...')
+        _log('\nChecking for new version of htpc-updater ...')
         releaseVersion = _getLatestGitHubReleaseVersion(HTPC_UPDATER_RELEASES)
         if _versiontuple(releaseVersion) > _versiontuple(__version__):
-            _writeAnyText(' %s is available, starting upgrade process.\n' % releaseVersion)
+            _log(' %s is available, starting upgrade process.\n' % releaseVersion)
 
             url = HTPC_UPDATER_DL_PATH.format(releaseVersion)
-            _writeAnyText('Downloading %s ...' % url)
+            _log('Downloading %s ...' % url)
             htpcUpdaterZipFile = requests.get(url, headers=HEADERS_TRACKABLE).content
-            _writeAnyText(' done.\n')
+            _log(' done.\n')
 
             htpcUpdaterNew = _writeTempFile(ZipFile(StringIO(htpcUpdaterZipFile)).open('htpc-updater.exe').read())
 
@@ -433,11 +431,11 @@ def _updateSelf():
             environ = os.environ.copy()
             environ.pop('PATH', None)
 
-            _writeAnyText('Restarting htpc-updater ...\n\n')
+            _log('Restarting htpc-updater ...\n\n')
             os.chdir(os.path.dirname(htpcUpdaterNew))
             os.execve(htpcUpdaterNew, args, environ)
         else:
-            _writeAnyText(' %s is the latest version.\n\n' % __version__)
+            _log(' %s is the latest version.\n' % __version__)
 
 
 def _isUpdatingSelf(arguments):
@@ -449,11 +447,13 @@ def _cleanupUpdate(arguments):
 
 
 if __name__ == '__main__':
-    _writeAnyText('htpc-updater %s (https://github.com/nikola/htpc-updater)\n\n' % __version__)
+    _log('htpc-updater %s (https://github.com/nikola/htpc-updater)\n' % __version__)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--install-pre-release', dest='installPreReleaseList', action='store',
         help='Install pre-release versions of comma-separated argument if available.')
+    parser.add_argument('--silent-install', dest='silentInstallList', action='store',
+        help='Install comma-separated arguments without showing installer GUI.')
     parser.add_argument('--auto-exit', dest='autoExit', action='store_true',
         help='Close htpc-updater without prompt for ENTER key.')
     parser.add_argument('--relaunch', action='store')
@@ -466,6 +466,7 @@ if __name__ == '__main__':
 
     updateComponents(args)
 
-    _black()
+    windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, BLACK)
     if not args.get('autoExit'):
+        _log('\n')
         raw_input('Press ENTER to exit ...')
