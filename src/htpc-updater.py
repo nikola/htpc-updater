@@ -3,7 +3,7 @@
 """
 __author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.6.1'
+__version__ = '0.6.2'
 
 import sys
 import os
@@ -21,10 +21,9 @@ from tempfile import mkstemp
 from hashlib import sha1 as SHA1
 from shutil import copy
 from ctypes import windll, c_ulong
+from subprocess import check_output
 
-import pefile
 import requests
-
 
 
 # Support unbuffered, colored console output.
@@ -84,6 +83,16 @@ def _writeTempFile(payload):
     return pathname
 
 
+def _getProductVersion(pathname):
+    result = check_output(
+        " ".join([
+            os.path.join(os.environ['SYSTEMROOT'], 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+            "(Get-Item '%s').VersionInfo.ProductVersion" % pathname,
+        ]),
+    ).rstrip()
+    return result
+
+
 def _getDefaultInstallationPath(component):
     pathname = os.path.join(DEFAULT_PATH, component)
     if not os.path.exists(pathname):
@@ -119,8 +128,7 @@ def _getAppLocationFromRegistry(software):
 def _getComVersionLocation(key):
     try:
         location = _getComLocationFromRegistry(key)
-        fields = pefile.PE(data=open(location, 'rb').read())
-        version = fields.FileInfo[0].StringTable[0].entries['ProductVersion']
+        version = _getProductVersion(location)
     except:
         return None, None
     else:
@@ -161,8 +169,7 @@ def _mpcHc_getLatestPreReleaseVersion(self):
 def _mpcHc_getInstalledVersion(self):
     try:
         location = _getAppLocationFromRegistry(self._identifier)
-        fields = pefile.PE(data=open(location, 'rb').read())
-        version = '.'.join(map(str, _versiontuple(fields.FileInfo[0].StringTable[0].entries['ProductVersion'])))
+        version = _getProductVersion(location)
     except:
         return None, None
     else:
