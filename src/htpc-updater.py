@@ -96,7 +96,7 @@ def _updateComponents(arguments):
                     log(' ERROR: %s\n' % e.message, RED)
                 else:
                     currentInstalledVersion, currentInstallationPath = instance.getInstalledVersion()
-                    if currentInstalledVersion != latestVersion or currentInstallationPath is None:
+                    if getVersionTuple(currentInstalledVersion) != getVersionTuple(latestVersion) or currentInstallationPath is None:
                         log('\nFailed to %s %s %s.\n'
                             % ('update to' if installedVersion is not None else 'install', name, latestVersion), RED)
                     else:
@@ -122,7 +122,7 @@ def _updateSelf():
         except:
             log(' ERROR: Could not connect to GitHub.\n', RED)
         else:
-            releaseVersion = _getLatestGitHubReleaseVersion(HTPC_UPDATER_RELEASES)
+            releaseVersion = getLatestGitHubReleaseVersion(HTPC_UPDATER_RELEASES)
             if getVersionTuple(releaseVersion) > getVersionTuple(__version__):
                 log(' %s is available, starting upgrade process.\n' % releaseVersion)
 
