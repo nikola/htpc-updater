@@ -1,0 +1,3 @@
+[submodule "src/updater"]
+	path = src/updater
+	url = git://github.com/nikola/updaterlib.git
