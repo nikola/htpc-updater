@@ -3,7 +3,7 @@
 """
 __author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.7.0'
+__version__ = '0.7.1'
 
 import sys
 import argparse
@@ -22,9 +22,9 @@ CONSOLE_HANDLER = windll.Kernel32.GetStdHandle(c_ulong(0xfffffff5))
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 windll.Kernel32.GetStdHandle.restype = c_ulong
 
-def log(text, color=BLACK):
+def log(text=None, color=BLACK):
     windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, color)
-    sys.stdout.write(text)
+    if text is not None: sys.stdout.write(text)
 
 setLogger(log)
 
@@ -70,14 +70,15 @@ def _updateComponents(arguments):
 
         prefix, infix = ('pre-', 'Pre') if preRelease else ('', '')
 
-        latestVersion = getattr(instance, 'getLatest%sReleaseVersion' % infix)()
-        if latestVersion is None:
+        try:
+            latestVersion = getattr(instance, 'getLatest%sReleaseVersion' % infix)()
+        except:
             log('ERROR: Could not retrieve version info of the latest %s %srelease.\n' % (name, prefix), RED)
         else:
             log('Latest %srelease version of %s: %s\n' % (prefix, name, latestVersion))
 
-            installedVersion, detectedInstallationPath = instance.getInstalledVersion()
             mustInstall = False
+            installedVersion, detectedInstallationPath = instance.getInstalledVersion()
             if installedVersion is not None:
                 log('Installed version: %s\n\t%s\n' % (installedVersion, detectedInstallationPath))
 
@@ -90,25 +91,21 @@ def _updateComponents(arguments):
                 mustInstall = True
 
             if mustInstall:
-                try:
-                    getattr(instance, 'installLatest%sReleaseVersion' % infix)(latestVersion, detectedInstallationPath, silent)
-                except Exception, e:
-                    log(' ERROR: %s\n' % e.message, RED)
+                getattr(instance, 'installLatest%sReleaseVersion' % infix)(latestVersion, detectedInstallationPath, silent)
+                currentInstalledVersion, currentInstallationPath = instance.getInstalledVersion()
+                if getVersionTuple(currentInstalledVersion) != getVersionTuple(latestVersion) or currentInstallationPath is None:
+                    log('\nFailed to %s %s %s.\n'
+                        % ('update to' if installedVersion is not None else 'install', name, latestVersion), RED)
                 else:
-                    currentInstalledVersion, currentInstallationPath = instance.getInstalledVersion()
-                    if getVersionTuple(currentInstalledVersion) != getVersionTuple(latestVersion) or currentInstallationPath is None:
-                        log('\nFailed to %s %s %s.\n'
-                            % ('update to' if installedVersion is not None else 'install', name, latestVersion), RED)
-                    else:
-                        log(' done.\n')
-                        if detectedInstallationPath != currentInstallationPath:
-                            log('%s %s is now installed in:\n\t%s\n'
-                                % (name, latestVersion, currentInstallationPath))
-                            if installedVersion is not None:
-                                log('Your previous installation of %s %s remains in:\n\t%s\n'
-                                    % (name, installedVersion, detectedInstallationPath))
-                        log('Successfully %s %s. No errors.\n'
-                            % ('updated' if installedVersion is not None else 'installed', name), GREEN)
+                    log(' done.\n')
+                    if detectedInstallationPath != currentInstallationPath:
+                        log('%s %s is now installed in:\n\t%s\n'
+                            % (name, latestVersion, currentInstallationPath))
+                        if installedVersion is not None:
+                            log('Your previous installation of %s %s remains in:\n\t%s\n'
+                                % (name, installedVersion, detectedInstallationPath))
+                    log('Successfully %s %s. No errors.\n'
+                        % ('updated' if installedVersion is not None else 'installed', name), GREEN)
 
 
 def _updateSelf():
@@ -179,9 +176,14 @@ if __name__ == '__main__':
         else:
             _updateSelf()
 
-    _updateComponents(options)
+    try:
+        _updateComponents(options)
+    except:
+        import traceback
+        log('\n', RED)
+        traceback.print_exc()
 
-    windll.Kernel32.SetConsoleTextAttribute(CONSOLE_HANDLER, BLACK)
+    log()
     if not options.get('autoExit'):
         log('\n')
         raw_input('Press ENTER to exit ...')
