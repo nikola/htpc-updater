@@ -3,7 +3,7 @@
 """
 __author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.7.1'
+__version__ = '0.7.2'
 
 import sys
 import argparse
@@ -17,6 +17,8 @@ HTPC_UPDATER_RELEASES = 'https://api.github.com/repos/nikola/htpc-updater/releas
 HTPC_UPDATER_PROJECT = 'https://github.com/nikola/htpc-updater'
 HTPC_UPDATER_DL_PATH = HTPC_UPDATER_PROJECT + '/releases/download/{0}/htpc-updater-{0}.zip'
 CONSOLE_HANDLER = windll.Kernel32.GetStdHandle(c_ulong(0xfffffff5))
+
+CWD =  os.path.dirname(sys.executable) if hasattr(sys, 'frozen') else os.path.dirname(os.path.realpath(__file__))
 
 # Support unbuffered, colored console output.
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
@@ -41,6 +43,7 @@ def _updateComponents(arguments):
                 getLatestReleaseVersion =        mpcHc_getLatestReleaseVersion,
                 getLatestPreReleaseVersion =     mpcHc_getLatestPreReleaseVersion,
                 getInstalledVersion =            mpcHc_getInstalledVersion,
+                getPostInstallVersion =          mpcHc_getPostInstallVersion,
                 installLatestReleaseVersion =    mpcHc_installLatestReleaseVersion,
                 installLatestPreReleaseVersion = mpcHc_installLatestPreReleaseVersion,
             )
@@ -92,8 +95,9 @@ def _updateComponents(arguments):
 
             if mustInstall:
                 getattr(instance, 'installLatest%sReleaseVersion' % infix)(latestVersion, detectedInstallationPath, silent)
-                currentInstalledVersion, currentInstallationPath = instance.getInstalledVersion()
-                if getVersionTuple(currentInstalledVersion) != getVersionTuple(latestVersion) or currentInstallationPath is None:
+
+                currentInstalledVersion, currentInstallationPath = instance.getPostInstallVersion(cwd=CWD)
+                if currentInstallationPath is None or getVersionTuple(currentInstalledVersion) != getVersionTuple(latestVersion):
                     log('\nFailed to %s %s %s.\n'
                         % ('update to' if installedVersion is not None else 'install', name, latestVersion), RED)
                 else:
