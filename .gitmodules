@@ -1,3 +1,6 @@
 [submodule "src/updater"]
 	path = src/updater
 	url = git://github.com/nikola/updaterlib.git
+[submodule "src/progressbar"]
+	path = src/progressbar
+	url = git://github.com/ikame/progressbar

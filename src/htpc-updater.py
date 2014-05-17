@@ -3,7 +3,7 @@
 """
 __author__ = 'Nikola Klaric (nikola@generic.company)'
 __copyright__ = 'Copyright (c) 2014 Nikola Klaric'
-__version__ = '0.7.2'
+__version__ = '0.8.0'
 
 import sys
 import argparse
@@ -18,7 +18,7 @@ HTPC_UPDATER_PROJECT = 'https://github.com/nikola/htpc-updater'
 HTPC_UPDATER_DL_PATH = HTPC_UPDATER_PROJECT + '/releases/download/{0}/htpc-updater-{0}.zip'
 CONSOLE_HANDLER = windll.Kernel32.GetStdHandle(c_ulong(0xfffffff5))
 
-CWD =  os.path.dirname(sys.executable) if hasattr(sys, 'frozen') else os.path.dirname(os.path.realpath(__file__))
+CWD = os.path.dirname(sys.executable) if hasattr(sys, 'frozen') else os.path.dirname(os.path.realpath(__file__))
 
 # Support unbuffered, colored console output.
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
@@ -34,9 +34,10 @@ setLogger(log)
 def _updateComponents(arguments):
     installPreReleaseList = arguments.get('installPreReleaseList') or ''
     silentInstallList = arguments.get('silentInstallList') or ''
+    installComponentsList = arguments.get('installComponentsList')
 
     components = [
-        ('MPC-HC',
+        ('MPC-HC', 'mpchc',
             'mpchc' in installPreReleaseList,
             'mpchc' in silentInstallList,
             Component(r'MPC-HC\MPC-HC',
@@ -48,7 +49,7 @@ def _updateComponents(arguments):
                 installLatestPreReleaseVersion = mpcHc_installLatestPreReleaseVersion,
             )
         ),
-        ('LAV Filters',
+        ('LAV Filters', 'lavfilters',
             'lavfilters' in installPreReleaseList,
             'lavfilters' in silentInstallList,
             Component(LAVFILTERS_CLSID,
@@ -57,7 +58,7 @@ def _updateComponents(arguments):
                 installLatestReleaseVersion =    lavFilters_installLatestReleaseVersion,
             )
         ),
-        ('madVR',
+        ('madVR', 'madvr',
             'madvr' in installPreReleaseList,
             'madvr' in silentInstallList,
             Component(MADVR_CLSID,
@@ -68,7 +69,10 @@ def _updateComponents(arguments):
         ),
     ]
 
-    for name, preRelease, silent, instance in components:
+    for name, identifier, preRelease, silent, instance in components:
+        if not identifier in installComponentsList:
+            continue
+
         log('\n')
 
         prefix, infix = ('pre-', 'Pre') if preRelease else ('', '')
@@ -161,14 +165,28 @@ def _cleanupUpdate(arguments):
 if __name__ == '__main__':
     log('htpc-updater %s (%s)\n' % (__version__, HTPC_UPDATER_PROJECT))
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        prog='htpc-updater',
+        formatter_class=argparse.RawTextHelpFormatter,
+        description='Install or update MPC-HC, LAV Filters and madVR automagically.',
+        epilog="""Examples:
+htpc-updater --install-components=mpchc,madvr --silent-install=mpchc
+  Install only MPC-HC and madVR, and do not show the installer GUI of MPC-HC.
+
+htpc-updater --install-pre-release=mpchc --auto-exit
+  Install the latest MPC-HC nightly build and release versions of LAV Filters and madVR, and exit htpc-updater after completion."""
+    )
+
+    parser.add_argument('--install-components', dest='installComponentsList', action='store', default='mpchc,lavfilters,madvr',
+        help='Install only comma-separated arguments.', metavar='= mpchc* | lavfilters* | madvr*')
     parser.add_argument('--install-pre-release', dest='installPreReleaseList', action='store',
-        help='Install pre-release versions of comma-separated argument if available.')
+        help='Install pre-release version of comma-separated arguments if available.', metavar='= mpchc')
     parser.add_argument('--silent-install', dest='silentInstallList', action='store',
-        help='Install comma-separated arguments without showing installer GUI.')
+        help='Install comma-separated arguments without showing installer GUI.', metavar='= mpchc* | lavfilters*')
     parser.add_argument('--auto-exit', dest='autoExit', action='store_true',
         help='Close htpc-updater without prompt for ENTER key.')
-    parser.add_argument('--relaunch', action='store')
+    parser.add_argument('--relaunch', action='store',
+        help='Do not use this option.')
     options = vars(parser.parse_args())
 
     if getattr(sys, 'frozen', None):
