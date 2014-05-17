@@ -16,6 +16,36 @@ You have 3 choices:
 * __or__ compile your own executable, i.e. (1) Install Python 2.7.x. (2) Install requirements with pip. (3) Build with PyInstaller.
 * __or__ run the Python script from a Windows shell, i.e. (1) Install requirements with pip. (2) Run /src/htpc-updater.py
 
+Command-line arguments
+----------------------
+
+```
+usage: htpc-updater [-h]
+                    [--install-components = mpchc* | lavfilters* | madvr*]
+                    [--install-pre-release = mpchc]
+                    [--silent-install = mpchc* | lavfilters*] [--auto-exit]
+                    [--relaunch RELAUNCH]
+
+Install or update MPC-HC, LAV Filters and madVR automagically.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --install-components = mpchc* | lavfilters* | madvr*
+                        Install only comma-separated arguments.
+  --install-pre-release = mpchc
+                        Install pre-release version of comma-separated arguments if available.
+  --silent-install = mpchc* | lavfilters*
+                        Install comma-separated arguments without showing installer GUI.
+  --auto-exit           Close htpc-updater without prompt for ENTER key.
+
+Examples:
+htpc-updater --install-components=mpchc,madvr --silent-install=mpchc
+  Install only MPC-HC and madVR, and do not show the installer GUI of MPC-HC.
+
+htpc-updater --install-pre-release=mpchc --auto-exit
+  Install the latest MPC-HC nightly build and release versions of LAV Filters and madVR, and exit htpc-updater after completion.
+```
+
 Notes
 -----
 
