@@ -43,7 +43,8 @@ htpc-updater --install-components=mpchc,madvr --silent-install=mpchc
   Install only MPC-HC and madVR, and do not show the installer GUI of MPC-HC.
 
 htpc-updater --install-pre-release=mpchc --auto-exit
-  Install the latest MPC-HC nightly build and release versions of LAV Filters and madVR, and exit htpc-updater after completion.
+  Install the latest MPC-HC nightly build and release versions of LAV Filters and madVR,
+  and exit htpc-updater after completion.
 ```
 
 Notes
